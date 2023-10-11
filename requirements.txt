@@ -1,3 +1,6 @@
 fastapi
 uvicorn
-SQLalchemy
+SQLAlchemy
+pydantic
+passlib
+bcrypt
