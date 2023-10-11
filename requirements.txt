@@ -4,3 +4,4 @@ SQLAlchemy
 pydantic
 passlib
 bcrypt
+python-jose

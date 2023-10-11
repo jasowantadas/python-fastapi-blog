@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, status, HTTPException
 from typing import List
-from . import schemas, models
+from . import schemas, models, token
 from sqlalchemy.orm import Session
 from .database import engine, SessionLocal
 from passlib.context import CryptContext
@@ -20,8 +20,8 @@ def get_db():
 
 
 @app.post('/blog', status_code=status.HTTP_201_CREATED, tags=['Blogs'])
-def create(req: schemas.Blog, db: Session = Depends(get_db)):
-    new_blog = models.Blog(**req.dict())
+def create_Blog(req: schemas.Blog, db: Session = Depends(get_db),):
+    new_blog = models.Blog(**req.dict(), user_id=1)
     db.add(new_blog)
     db.commit()
     db.refresh(new_blog)
@@ -29,7 +29,7 @@ def create(req: schemas.Blog, db: Session = Depends(get_db)):
 
 
 @app.get('/blog', response_model=List[schemas.ShowBlog], tags=['Blogs'])
-async def show_all(db: Session = Depends(get_db)):
+async def show_all_Blogs(db: Session = Depends(get_db)):
     blogs = db.query(models.Blog).all()
     print(blogs)
     return blogs
@@ -39,7 +39,7 @@ async def show_all(db: Session = Depends(get_db)):
 
 
 @app.get('/blog/{id}', response_model=schemas.ShowBlog, tags=['Blogs'])
-def find(id: int, db: Session = Depends(get_db)):
+def find_Blog(id: int, db: Session = Depends(get_db)):
     blog = db.query(models.Blog).filter(models.Blog.id == id).first()
     if blog:
         return blog
@@ -50,7 +50,7 @@ def find(id: int, db: Session = Depends(get_db)):
 
 
 @app.delete('/blog/{id}', tags=['Blogs'])
-def Delete(id, db: Session = Depends(get_db)):
+def Delete_Blog(id, db: Session = Depends(get_db)):
     db.query(models.Blog).filter(models.Blog.id ==
                                  id).delete(synchronize_session=False)
     db.commit()
@@ -58,7 +58,7 @@ def Delete(id, db: Session = Depends(get_db)):
 
 
 @app.put('/blog/{id}', tags=['Blogs'])
-def Update(id: int, req: schemas.Blog, db: Session = Depends(get_db)):
+def Update_Blog(id: int, req: schemas.Blog, db: Session = Depends(get_db)):
     blog = db.query(models.Blog).filter(models.Blog.id == id)
     if not blog.first():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -70,6 +70,10 @@ def Update(id: int, req: schemas.Blog, db: Session = Depends(get_db)):
 
 # password encription
 pwd_cxt = CryptContext(schemes=['bcrypt'], deprecated='auto')
+
+
+def verify(plainPassword, hashedPassword):
+    return pwd_cxt.verify(plainPassword, hashedPassword)
 
 
 @app.post('/user', response_model=schemas.ShowUser, tags=['Users'])
@@ -90,3 +94,18 @@ def get_user(id, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"User with id:{id} not found")
     return user
+
+
+@app.post('/login', tags=["Auth"])
+def Login(req: schemas.Login, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(
+        models.User.email == req.username).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Invalid creadentials")
+    if not verify(req.password, user.password):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Invalid Password")
+    # jwt access token
+    access_token = token.create_access_token(data={"sub": user.email})
+    return {"access_toke": access_token, "token_type": "bearer"}
